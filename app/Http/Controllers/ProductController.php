@@ -15,7 +15,6 @@ class ProductController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
-            'category' => 'nullable|string|max:100',
             'stock_quantity' => 'required|integer|min:0',
             'low_stock_threshold' => 'required|integer|min:0',
             'images' => 'nullable|array',
@@ -27,7 +26,6 @@ class ProductController extends Controller
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
             'price' => $data['price'],
-            'category' => $data['category'] ?? null,
             'stock_quantity' => $data['stock_quantity'],
             'low_stock_threshold' => $data['low_stock_threshold'],
         ]);
@@ -47,10 +45,43 @@ class ProductController extends Controller
 
     public function getList(Request $request)
     {
-        $perPage = $request->get('per_page', 10);
+        $query = Product::with('images');
 
-    return Product::with('images')
-        ->latest()
-        ->paginate($perPage);
+        if ($search = $request->query('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('min_price')) {
+            $query->where('price', '>=', $request->query('min_price'));
+        }
+
+        if ($request->filled('max_price')) {
+            $query->where('price', '<=', $request->query('max_price'));
+        }
+
+        if ($request->boolean('low_stock')) {
+            $query->whereColumn('stock_quantity', '<=', 'low_stock_threshold');
+        }
+
+        $sort = $request->query('sort', 'created_at');
+        $order = $request->query('order', 'desc');
+        $allowedSort = ['name', 'price', 'stock_quantity', 'created_at'];
+        if (! in_array($sort, $allowedSort, true)) {
+            $sort = 'created_at';
+        }
+        if (! in_array($order, ['asc', 'desc'], true)) {
+            $order = 'desc';
+        }
+
+        $rows = (int) $request->query('rows', 10);
+        if ($rows < 1) {
+            $rows = 10;
+        }
+
+        // page comes from ?page=1 — Laravel reads it automatically
+        return $query->orderBy($sort, $order)->paginate($rows);
     }
 }
