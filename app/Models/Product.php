@@ -18,7 +18,7 @@ class Product extends Model
         'low_stock_threshold',
     ];
 
-    protected $appends = ['is_low_stock'];
+    // protected $appends = ['is_low_stock'];
 
     protected function casts(): array
     {
