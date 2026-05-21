@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use Illuminate\Http\Request;
-
+use Illuminate\Support\Facades\Storage;
 class ProductController extends Controller
 {
     
@@ -83,4 +83,59 @@ class ProductController extends Controller
 
         return $query->orderBy($sort, $order)->paginate($rows);
     }
+
+    public function getProduct($product_id)
+    {
+        $product = Product::with('images')->find($product_id);
+
+        if (! $product) {
+            return response()->json(['message' => 'Record not found.'], 404);
+        }
+
+        return response()->json($product);
+    }
+
+    public function updateProduct(Request $request, $id)
+{
+    $product = Product::find($id);
+
+    if (! $product) {
+        return response()->json(['message' => 'Product not found'], 404);
+    }
+
+    $data = $request->validate([
+        'name' => 'required',
+        'price' => 'required|numeric',
+        'stock_quantity' => 'required|integer',
+        'low_stock_threshold' => 'required|integer',
+        'description' => 'nullable',
+        'images.*' => 'image',
+        'remove_images' => 'array'
+    ]);
+
+    $product->update($data);
+
+    // remove images
+    if (!empty($data['remove_images'])) {
+        $images = $product->images()->whereIn('id', $data['remove_images'])->get();
+
+        foreach ($images as $img) {
+            Storage::disk('public')->delete($img->path);
+            $img->delete();
+        }
+    }
+
+    // Add new images
+    if ($request->hasFile('images')) {
+        foreach ($request->file('images') as $file) {
+            $path = $file->store("products/{$product->id}", 'public');
+
+            $product->images()->create([
+                'path' => $path
+            ]);
+        }
+    }
+
+    return response()->json($product->load('images'));
+}
 }
