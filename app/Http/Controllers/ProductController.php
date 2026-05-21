@@ -42,7 +42,7 @@ class ProductController extends Controller
 
         return response()->json($product->load('images'), 201);
     }
-
+// get list of  product api (to be showwn in home page) 
     public function getList(Request $request)
     {
         $query = Product::with('images');
@@ -81,7 +81,6 @@ class ProductController extends Controller
             $rows = 10;
         }
 
-        // page comes from ?page=1 — Laravel reads it automatically
         return $query->orderBy($sort, $order)->paginate($rows);
     }
 }
