@@ -95,47 +95,49 @@ class ProductController extends Controller
         return response()->json($product);
     }
 
-    public function updateProduct(Request $request, $id)
-{
-    $product = Product::find($id);
-
-    if (! $product) {
-        return response()->json(['message' => 'Product not found'], 404);
-    }
-
-    $data = $request->validate([
-        'name' => 'required',
-        'price' => 'required|numeric',
-        'stock_quantity' => 'required|integer',
-        'low_stock_threshold' => 'required|integer',
-        'description' => 'nullable',
-        'images.*' => 'image',
-        'remove_images' => 'array'
-    ]);
-
-    $product->update($data);
-
-    // remove images
-    if (!empty($data['remove_images'])) {
-        $images = $product->images()->whereIn('id', $data['remove_images'])->get();
-
-        foreach ($images as $img) {
-            Storage::disk('public')->delete($img->path);
-            $img->delete();
+    public function updateProduct(Request $request, $product_id)
+    {
+        $product = Product::find($product_id);
+        if (! $product) {
+            return response()->json(['message' => 'Record not found.'], 404);
         }
-    }
 
-    // Add new images
-    if ($request->hasFile('images')) {
-        foreach ($request->file('images') as $file) {
-            $path = $file->store("products/{$product->id}", 'public');
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'price' => 'required|numeric|min:0',
+            'stock_quantity' => 'required|integer|min:0',
+            'low_stock_threshold' => 'required|integer|min:0',
+            'images' => 'nullable|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:5120',
+            'remove_images' => 'nullable|array',
+            'remove_images.*' => 'integer',
+        ]);
 
-            $product->images()->create([
-                'path' => $path
-            ]);
+        $product->update([
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+            'price' => $data['price'],
+            'stock_quantity' => $data['stock_quantity'],
+            'low_stock_threshold' => $data['low_stock_threshold'],
+        ]);
+
+        if (! empty($data['remove_images'])) {
+            $images = $product->images()->whereIn('id', $data['remove_images'])->get();
+            foreach ($images as $img) {
+                Storage::disk('public')->delete($img->path);
+                $img->delete();
+            }
         }
+
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $file) {
+                $path = $file->store("products/{$product->id}", 'public');
+                $product->images()->create(['path' => $path]);
+            }
+        }
+
+        return response()->json($product->load('images'));
     }
 
-    return response()->json($product->load('images'));
-}
 }
