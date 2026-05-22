@@ -140,4 +140,21 @@ class ProductController extends Controller
         return response()->json($product->load('images'));
     }
 
+    public function deleteProduct($product_id)
+    {
+        $product = Product::with('images')->find($product_id);
+
+        if (! $product) {
+            return response()->json(['message' => 'Record not found.'], 404);
+        }
+
+        foreach ($product->images as $image) {
+            Storage::disk('public')->delete($image->path);
+            $image->delete();
+        }
+
+        $product->delete();
+
+        return response()->json(['message' => 'Product deleted successfully']);
+    }
 }
