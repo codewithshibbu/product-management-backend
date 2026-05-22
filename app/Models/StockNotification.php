@@ -13,6 +13,8 @@ class StockNotification extends Model
         'read_at',
     ];
 
+    protected $appends = ['is_read'];
+
     protected function casts(): array
     {
         return [
@@ -23,6 +25,11 @@ class StockNotification extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function getIsReadAttribute(): bool
+    {
+        return $this->read_at !== null;
     }
 
     public function isUnread(): bool
