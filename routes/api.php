@@ -13,6 +13,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/products', [ProductController::class, 'getList']);
     Route::post('/products', [ProductController::class, 'createProduct']);
+    Route::patch('/products/list-action', [ProductController::class, 'listAction']);
     Route::get('/products/{product_id}', [ProductController::class, 'getProduct']);
     Route::put('/products/{product_id}', [ProductController::class, 'updateProduct']);
     Route::delete('/products/{product_id}', [ProductController::class, 'deleteProduct']);
