@@ -3,6 +3,7 @@
 namespace App\Listeners;
 
 use App\Events\ProductLowStock;
+use App\Jobs\SendLowStockEmailJob;
 use App\Models\StockNotification;
 
 class CreateStockNotification
@@ -19,5 +20,7 @@ class CreateStockNotification
             'product_id' => $product->id,
             'message' => "{$product->name} is low on stock ({$product->stock_quantity} left, alert at {$product->low_stock_threshold})",
         ]);
+
+        SendLowStockEmailJob::dispatch($product);
     }
 }

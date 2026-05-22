@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\ProductLowStock;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -38,6 +39,11 @@ class ProductController extends Controller
                     'sort_order' => $i,
                 ]);
             }
+        }
+
+        $product->refresh();
+        if ($product->is_low_stock) {
+            event(new ProductLowStock($product));
         }
 
         return response()->json($product->load('images'), 201);
@@ -139,6 +145,11 @@ class ProductController extends Controller
                 $path = $file->store("products/{$product->id}", 'public');
                 $product->images()->create(['path' => $path]);
             }
+        }
+
+        $product->refresh();
+        if ($product->is_low_stock) {
+            event(new ProductLowStock($product));
         }
 
         return response()->json($product->load('images'));
