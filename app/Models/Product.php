@@ -18,7 +18,7 @@ class Product extends Model
         'low_stock_threshold',
     ];
 
-    // protected $appends = ['is_low_stock'];
+    protected $appends = ['is_low_stock'];
 
     protected function casts(): array
     {
@@ -29,7 +29,11 @@ class Product extends Model
         ];
     }
 
-    
+    public function getIsLowStockAttribute(): bool
+    {
+        return $this->stock_quantity <= $this->low_stock_threshold;
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
