@@ -43,4 +43,9 @@ class Product extends Model
     {
         return $this->hasMany(ProductImage::class)->orderBy('sort_order');
     }
+
+    public function stockNotifications(): HasMany
+    {
+        return $this->hasMany(StockNotification::class);
+    }
 }
