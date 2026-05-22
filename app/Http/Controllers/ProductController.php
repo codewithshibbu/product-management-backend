@@ -81,7 +81,11 @@ class ProductController extends Controller
             $rows = 10;
         }
 
-        return $query->orderBy($sort, $order)->paginate($rows);
+        $products = $query->orderBy($sort, $order)->paginate($rows);
+
+        return response()->json(array_merge($products->toArray(), [
+            'low_stock_count' => Product::whereColumn('stock_quantity', '<=', 'low_stock_threshold')->count(),
+        ]));
     }
 
     public function getProduct($product_id)
