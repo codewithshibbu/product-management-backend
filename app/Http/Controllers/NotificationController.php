@@ -55,4 +55,15 @@ class NotificationController extends Controller
 
         return response()->json(['message' => 'All notifications marked as read.']);
     }
+
+    public function deleteAll()
+    {
+        $count = StockNotification::count();
+        StockNotification::query()->delete();
+
+        return response()->json([
+            'message' => "{$count} notification(s) cleared.",
+            'deleted_count' => $count,
+        ]);
+    }
 }

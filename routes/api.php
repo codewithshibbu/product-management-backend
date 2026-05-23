@@ -19,6 +19,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/products/{product_id}', [ProductController::class, 'deleteProduct']);
 
     Route::get('/notifications/unread-count', [NotificationController::class, 'getUnreadCount']);
+    Route::delete('/notifications', [NotificationController::class, 'deleteAll']);
     Route::patch('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
     Route::get('/notifications', [NotificationController::class, 'getList']);
     Route::patch('/notifications/{notification_id}/read', [NotificationController::class, 'markAsRead']);
