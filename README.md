@@ -1,28 +1,26 @@
 # Product Management API
 
-Laravel 11 REST API for a small product catalog. Users log in, manage products (with images), filter the list, and get alerts when stock runs low. Built to pair with the Vue frontend in `product-management-frontend` (same parent folder).
-
-Auth uses **Laravel Sanctum** (Bearer token on API routes).
+Laravel 11 REST API (Sanctum auth) for products, images, filters, and low-stock alerts. Pairs with **`../product-management-frontend`**.
 
 ---
 
-## What you need installed
+## Requirements
 
-- PHP 8.2+ (extensions: `pdo`, `mbstring`, `openssl`, `tokenizer`, `xml`, `ctype`, `json`, `fileinfo`)
-- Composer
-- MySQL or MariaDB (what we used locally) — SQLite works too if you change `.env`
-- Node is only required for the frontend, not this repo
+| Required | Notes |
+|----------|--------|
+| PHP 8.2+ | Extensions: `pdo`, `mbstring`, `openssl`, `tokenizer`, `xml`, `ctype`, `json`, `fileinfo` |
+| Composer | |
+| MySQL / MariaDB | SQLite OK if you change `.env` |
+| Frontend | Node.js — only for the Vue app, not this repo |
 
-Optional but needed for low-stock **email**:
-
-- A mail account (Mailtrap for testing is fine)
-- Queue worker running (see below)
+| Optional (low-stock **email**) | |
+|--------------------------------|--|
+| SMTP (e.g. Mailtrap) | Set `MAIL_*` in `.env` |
+| Queue worker | `php artisan queue:work` — or use `QUEUE_CONNECTION=sync` locally |
 
 ---
 
-## First-time setup
-
-Clone the repo, then from the project root:
+## Setup
 
 ```bash
 composer install
@@ -30,7 +28,7 @@ cp .env.example .env
 php artisan key:generate
 ```
 
-Edit `.env` for your database. Example for XAMPP/MySQL:
+**Database** — create empty DB, then in `.env`:
 
 ```env
 DB_CONNECTION=mysql
@@ -41,215 +39,104 @@ DB_USERNAME=root
 DB_PASSWORD=
 ```
 
-Create the empty database in phpMyAdmin or MySQL before migrating.
-
-Run migrations and link public storage (product images are served from here):
-
 ```bash
 php artisan migrate
 php artisan storage:link
-```
-
-Start the API:
-
-```bash
 php artisan serve
 ```
 
-Default: `http://127.0.0.1:8000`. All routes live under `/api` (e.g. `POST /api/login`).
+API base: `http://127.0.0.1:8000/api`
 
-Point the frontend `.env` at this:
+**Frontend** (separate repo):
 
 ```env
 VITE_API_URL=http://127.0.0.1:8000/api
 ```
 
-Set `APP_URL` to the same host you use for the API (`http://127.0.0.1:8000` is better than `http://localhost` if the frontend calls `127.0.0.1`).
+Use the same host for `APP_URL` (prefer `127.0.0.1` over `localhost` if the UI uses `127.0.0.1`).
+
+### Important `.env` keys
+
+| Variable | Purpose |
+|----------|---------|
+| `SUPER_ADMIN_EMAIL` | Email that gets super-admin rights (edit/delete any product, clear all alerts). Not a password — user must register/login with this email. |
+| `LOW_STOCK_NOTIFY_EMAIL` | Inbox for low-stock **emails** |
+| `QUEUE_CONNECTION` | `database` + `queue:work`, or `sync` for instant mail in dev |
+| `MAIL_*` | SMTP settings |
+| `FRONTEND_URL` | Vue app URL for password reset links in email |
+
+After changing `.env`: `php artisan config:clear` (especially if you used `config:cache`).
 
 ---
 
-## Mail and low-stock queue
+## Run day-to-day
 
-Low-stock emails are **not** sent inside the HTTP request. A job goes on the queue.
+| Terminal | Command |
+|----------|---------|
+| API | `php artisan serve` |
+| Emails (if `QUEUE_CONNECTION=database`) | `php artisan queue:work` |
+| Frontend | `cd ../product-management-frontend && npm run dev` |
 
-In `.env`:
-
-```env
-QUEUE_CONNECTION=database
-MAIL_MAILER=smtp
-MAIL_HOST=...
-MAIL_PORT=...
-MAIL_USERNAME=...
-MAIL_PASSWORD=...
-MAIL_ENCRYPTION=tls
-MAIL_FROM_ADDRESS=...
-LOW_STOCK_NOTIFY_EMAIL=you@example.com
-```
-
-`LOW_STOCK_NOTIFY_EMAIL` is the single inbox that gets alert emails (company admin style — not the logged-in user’s email).
-
-After changing mail settings, clear config cache if you ever ran `config:cache`:
-
-```bash
-php artisan config:clear
-```
-
-Run a worker in a **second terminal** while developing:
-
-```bash
-php artisan queue:work
-```
-
-For quick local testing without a worker you can set `QUEUE_CONNECTION=sync` — email sends immediately on save.
-
-**Mailtrap:** sandbox catches mail in the Mailtrap website. It won’t land in a real Gmail inbox until you use a real SMTP/sending setup.
+Protected routes need header: `Authorization: Bearer {token}` from login/register.
 
 ---
 
-## Features (backend side)
+## API overview
 
-### Auth
+**Auth:** `POST /register`, `POST /login`, `POST /logout`, `GET /user`, `POST /forgot-password`, `POST /reset-password`
 
-- Register and login return a Sanctum token.
-- Logout revokes the current token.
-- All product and notification routes need `Authorization: Bearer {token}`.
+Password reset emails link to the Vue app (`FRONTEND_URL`, default `http://localhost:5173/reset-password?token=...&email=...`). Requires working `MAIL_*` settings (same as low-stock mail).
 
-### Products
+**Products:** `GET/POST /products`, `GET/PUT/DELETE /products/{id}`, `PATCH /products/list-action`
 
-- CRUD for products: name, description, price, stock quantity, low stock threshold.
-- Each product belongs to the user who created it (`user_id`); list/detail can include `user` for “created by”.
-- **List** supports search (name/description), min/max price, low-stock filter, sort (name, price, stock, created_at), pagination (`rows`, `page`). Response also includes `low_stock_count` for the banner on the frontend.
-- **Images:** create/update accept `multipart/form-data` with `images[]` files. Files go to `storage/app/public/products/{id}/`. Paths are stored in `product_images`; JSON includes a `url` accessor.
-- **Update** can send `remove_images[]` (image IDs) to delete files from disk and DB.
-- **Bulk delete:** `PATCH /api/products/list-action` with `action: delete` + `ids`, or `action: delete-all`.
+List query params: `search`, `min_price`, `max_price`, `low_stock=1`, `mine=1`, `sort`, `order`, `rows`, `page`
 
-Low stock is when `stock_quantity <= low_stock_threshold`. The model exposes `is_low_stock` on the JSON.
+**Notifications:** `GET /notifications`, `GET /notifications/unread-count`, `PATCH .../read`, `PATCH /notifications/read-all`, `DELETE /notifications` (super admin only)
 
-### Low stock notifications and email
+**Images:** `multipart/form-data` on create/update; use `POST` + `_method=PUT` for updates. Public URL: `{APP_URL}/storage/products/{id}/...` (needs `storage:link`).
 
-When a product is **created or updated** and is low stock:
+**Roles**
 
-1. `ProductLowStock` event fires.
-2. `CreateStockNotification` listener (auto-registered by Laravel — don’t add a second `Event::listen` for the same class or you’ll get duplicates):
-   - Inserts a row in `stock_notifications` (message + `product_id`).
-   - Dispatches `SendLowStockEmailJob` to the queue.
-3. The job sends `LowStockAlertMail` to `LOW_STOCK_NOTIFY_EMAIL` using the Blade view `resources/views/emails/low-stock.blade.php`.
+- **Super admin** (`SUPER_ADMIN_EMAIL`): manage any product, delete-all bulk, clear all alerts, mark any alert read.
+- **Normal user:** see all products/alerts; edit/delete own products only; mark read own alerts only; filter own list with `mine=1`.
 
-The frontend bell reads these rows via the notifications API — separate from email.
+Authorization uses `ProductPolicy` + `App\Support\SuperAdmin` (email match, not a DB column). JSON includes `user.is_super_admin` — re-login after changing `SUPER_ADMIN_EMAIL`.
 
-### In-app notifications API
-
-- `GET /api/notifications` — paginated list
-- `GET /api/notifications/unread-count`
-- `PATCH /api/notifications/{id}/read`
-- `PATCH /api/notifications/read-all`
-
----
-
-## How the low-stock flow fits together
-
-Rough path a new developer can follow:
-
-```
-Save product (create/update)
-  → ProductController checks is_low_stock
-  → event(ProductLowStock)
-  → CreateStockNotification
-       → stock_notifications table (for API / bell)
-       → SendLowStockEmailJob (queue)
-  → queue:work runs job
-  → Mail to LOW_STOCK_NOTIFY_EMAIL
-```
-
-Frontend only hits the notification endpoints; it never sends mail itself.
-
----
-
-## Image uploads (for Postman or frontend)
-
-Use `multipart/form-data`, not JSON.
-
-Fields: `name`, `description`, `price`, `stock_quantity`, `low_stock_threshold`, optional `images[]` (repeat for multiple files), optional `remove_images[]` on update.
-
-PHP doesn’t parse multipart bodies on real `PUT` requests well, so the Vue app posts to `/api/products/{id}` with `_method=PUT` in the form.
-
-Images are available at:
-
-`{APP_URL}/storage/products/{product_id}/{filename}`
-
-Requires `php artisan storage:link`.
-
----
-
-## Useful commands
-
-```bash
-php artisan migrate:fresh          # wipe and remigrate (dev only)
-php artisan queue:work             # process emails
-php artisan queue:failed           # if jobs fail
-php artisan config:clear           # after .env mail changes
-php artisan event:list             # check ProductLowStock has ONE listener
-php artisan storage:link           # once per deploy
-```
-
----
-
-## Project layout (the parts that matter)
-
-```
-app/
-  Events/ProductLowStock.php
-  Listeners/CreateStockNotification.php
-  Jobs/SendLowStockEmailJob.php
-  Mail/LowStockAlertMail.php
-  Http/Controllers/
-    AuthController.php
-    ProductController.php
-    NotificationController.php
-  Models/
-    Product.php
-    ProductImage.php
-    StockNotification.php
-    User.php
-database/migrations/     # users, products, product_images, stock_notifications, jobs
-resources/views/emails/low-stock.blade.php
-routes/api.php
-```
+**Low stock:** `stock_quantity <= low_stock_threshold` → DB notification + queued email to `LOW_STOCK_NOTIFY_EMAIL`.
 
 ---
 
 ## Troubleshooting
 
-**Emails not sending**
+| Problem | Fix |
+|---------|-----|
+| **500 / DB errors** | DB exists? `.env` credentials correct? Run `php artisan migrate` |
+| **401 on API** | Send `Authorization: Bearer {token}`; login again if token expired |
+| **Images 404** | `php artisan storage:link`; `APP_URL` matches how you open the API |
+| **Frontend can’t reach API** | `VITE_API_URL` must end with `/api`; API served from `public/` |
+| **Emails not sent** | Run `queue:work` OR set `QUEUE_CONNECTION=sync`; `config:clear`; check `mail.default` is `smtp` not `log`; set `LOW_STOCK_NOTIFY_EMAIL` |
+| **Reset link wrong host** | Set `FRONTEND_URL` in backend `.env` to your Vue URL (e.g. `http://localhost:5173`) |
+| **Reset token invalid** | Link expires in 60 min; request a new link; use the latest email |
+| **Duplicate emails/alerts** | `php artisan event:list` — `ProductLowStock` should have **one** listener (no duplicate `Event::listen` in providers) |
+| **Super admin UI wrong** | `.env` email matches login email; `config:clear`; log out and log in again on frontend |
+| **Failed jobs** | `php artisan queue:failed` · `storage/logs/laravel.log` |
+| **PHP 8.5 MySQL warnings** | `composer install` runs vendor patch script; see `scripts/patch-php85-mysql-pdo.php` |
 
-- Is `php artisan queue:work` running?
-- `php artisan config:show mail` — `default` should be `smtp`, not `log`.
-- Run `php artisan config:clear` after editing `.env`.
-- Is `LOW_STOCK_NOTIFY_EMAIL` set?
-- Check `failed_jobs` and `storage/logs/laravel.log`.
+**Useful commands**
 
-**Two emails / two notifications per save**
-
-- Run `php artisan event:list --event=App\\Events\\ProductLowStock`. You should see **one** listener. Duplicate `Event::listen()` in a service provider plus auto-discovery caused this before.
-
-**Images 404**
-
-- `php artisan storage:link`
-- `APP_URL` should match how you open the API.
-
-**CORS / frontend can’t reach API**
-
-- Frontend `VITE_API_URL` must end with `/api`.
-- Serve API with `artisan serve` or configure your vhost to the `public` folder.
-
----
-
-## Frontend repo
-
-See `../product-management-frontend/README.md` for `npm install`, `npm run dev`, and how the UI calls this API.
+```bash
+php artisan config:clear
+php artisan queue:work
+php artisan storage:link
+php artisan migrate:fresh   # dev only — wipes data
+```
 
 ---
 
-## License
+## Frontend
 
-MIT (Laravel framework license applies to framework code).
+`../product-management-frontend/README.md` — `npm install`, `npm run dev`.
+
+---
+
+MIT
