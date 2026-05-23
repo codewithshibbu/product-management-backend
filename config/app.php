@@ -123,4 +123,15 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Super admin email
+    |--------------------------------------------------------------------------
+    |
+    | The user who registers/logs in with this email gets elevated permissions.
+    |
+    */
+
+    'super_admin_email' => env('SUPER_ADMIN_EMAIL'),
+
 ];

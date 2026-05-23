@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Events\ProductLowStock;
 use App\Models\Product;
+use App\Support\SuperAdmin;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+
 class ProductController extends Controller
 {
     
@@ -72,6 +74,10 @@ class ProductController extends Controller
             $query->whereColumn('stock_quantity', '<=', 'low_stock_threshold');
         }
 
+        if ($request->boolean('mine')) {
+            $query->where('user_id', $request->user()->id);
+        }
+
         $sort = $request->query('sort', 'created_at');
         $order = $request->query('order', 'desc');
         $allowedSort = ['name', 'price', 'stock_quantity', 'created_at'];
@@ -111,6 +117,8 @@ class ProductController extends Controller
         if (! $product) {
             return response()->json(['message' => 'Record not found.'], 404);
         }
+
+        $this->authorize('update', $product);
 
         $data = $request->validate([
             'name' => 'required|string|max:255',
@@ -155,13 +163,15 @@ class ProductController extends Controller
         return response()->json($product->load(['images', 'user']));
     }
 
-    public function deleteProduct($product_id)
+    public function deleteProduct(Request $request, $product_id)
     {
         $product = Product::with('images')->find($product_id);
 
         if (! $product) {
             return response()->json(['message' => 'Record not found.'], 404);
         }
+
+        $this->authorize('delete', $product);
 
         $this->deleteProductRecord($product);
 
@@ -178,13 +188,24 @@ class ProductController extends Controller
         ]);
 
         if ($data['action'] === 'delete-all') {
+            if (! SuperAdmin::check($request->user())) {
+                return response()->json(['message' => 'Forbidden.'], 403);
+            }
+
             $products = Product::with('images')->get();
         } else {
-            $products = Product::with('images')->whereIn('id', $data['ids'])->get();
+            $query = Product::with('images')->whereIn('id', $data['ids']);
+
+            if (! SuperAdmin::check($request->user())) {
+                $query->where('user_id', $request->user()->id);
+            }
+
+            $products = $query->get();
         }
 
         $count = 0;
         foreach ($products as $product) {
+            $this->authorize('delete', $product);
             $this->deleteProductRecord($product);
             $count++;
         }

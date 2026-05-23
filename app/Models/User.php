@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\SuperAdmin;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -33,6 +34,10 @@ class User extends Authenticatable
         'remember_token',
     ];
 
+    protected $appends = [
+        'is_super_admin',
+    ];
+
     /**
      * Get the attributes that should be cast.
      *
@@ -44,6 +49,11 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function getIsSuperAdminAttribute(): bool
+    {
+        return SuperAdmin::check($this);
     }
 
     public function products(): \Illuminate\Database\Eloquent\Relations\HasMany
