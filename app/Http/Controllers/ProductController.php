@@ -46,12 +46,12 @@ class ProductController extends Controller
             event(new ProductLowStock($product));
         }
 
-        return response()->json($product->load('images'), 201);
+        return response()->json($product->load(['images', 'user']), 201);
     }
 // get list of  product api (to be showwn in home page) 
     public function getList(Request $request)
     {
-        $query = Product::with('images');
+        $query = Product::with(['images', 'user']);
 
         if ($search = $request->query('search')) {
             $query->where(function ($q) use ($search) {
@@ -96,7 +96,7 @@ class ProductController extends Controller
 
     public function getProduct($product_id)
     {
-        $product = Product::with('images')->find($product_id);
+        $product = Product::with(['images', 'user'])->find($product_id);
 
         if (! $product) {
             return response()->json(['message' => 'Record not found.'], 404);
@@ -152,7 +152,7 @@ class ProductController extends Controller
             event(new ProductLowStock($product));
         }
 
-        return response()->json($product->load('images'));
+        return response()->json($product->load(['images', 'user']));
     }
 
     public function deleteProduct($product_id)
