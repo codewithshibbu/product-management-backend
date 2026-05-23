@@ -172,4 +172,40 @@ class ProductController extends Controller
 
         return response()->json(['message' => 'Product deleted successfully']);
     }
+// product list action to delete
+    public function listAction(Request $request)
+    {
+        $data = $request->validate([
+            'action' => 'required|in:delete,delete-all',
+            'ids' => 'required_if:action,delete|array|min:1',
+            'ids.*' => 'integer|exists:products,id',
+        ]);
+
+        if ($data['action'] === 'delete-all') {
+            $products = Product::with('images')->get();
+        } else {
+            $products = Product::with('images')->whereIn('id', $data['ids'])->get();
+        }
+
+        $count = 0;
+        foreach ($products as $product) {
+            $this->deleteProductRecord($product);
+            $count++;
+        }
+
+        return response()->json([
+            'message' => "{$count} product(s) deleted successfully.",
+            'deleted_count' => $count,
+        ]);
+    }
+
+    private function deleteProductRecord(Product $product): void
+    {
+        foreach ($product->images as $image) {
+            Storage::disk('public')->delete($image->path);
+            $image->delete();
+        }
+
+        $product->delete();
+    }
 }
