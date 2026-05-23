@@ -1,6 +1,10 @@
 # Product Management API
 
-Laravel 11 REST API (Sanctum auth) for products, images, filters, and low-stock alerts. Pairs with **`../product-management-frontend`**.
+## What this is
+
+A **product inventory API** for a small team or shop: users sign up, add products (name, price, stock, images), search and filter the catalog, and get **low-stock alerts** in the app and by email. Each user owns the products they create; a **super admin** (one email in `.env`) can manage everything.
+
+This repo is the **backend** (Laravel 11 + Sanctum). The **Vue 3 UI** lives in **`../product-management-frontend`**.
 
 ---
 
@@ -83,9 +87,27 @@ Protected routes need header: `Authorization: Bearer {token}` from login/registe
 
 ## API overview
 
-**Auth:** `POST /register`, `POST /login`, `POST /logout`, `GET /user`, `POST /forgot-password`, `POST /reset-password`
+**Auth:** `POST /register`, `POST /login`, `POST /logout`, `GET /user`
 
-Password reset emails link to the Vue app (`FRONTEND_URL`, default `http://localhost:5173/reset-password?token=...&email=...`). Requires working `MAIL_*` settings (same as low-stock mail).
+**Forgot password (public, no token)**
+
+| Step | API | Notes |
+|------|-----|--------|
+| 1 | `POST /forgot-password` `{ "email": "..." }` | Email must exist in `users` |
+| 2 | User opens link in email | `{FRONTEND_URL}/reset-password?token=...&email=...` |
+| 3 | `POST /reset-password` | `{ "email", "token", "password", "password_confirmation" }` |
+
+**`POST /forgot-password` responses**
+
+- **200** — `{ "message": "We sent a password reset link to your email." }` (mail sent via `MAIL_*`)
+- **422** — email not registered: `{ "errors": { "email": ["No account found with this email address."] } }`
+
+**`POST /reset-password` responses**
+
+- **200** — `{ "message": "Password updated. You can sign in now." }`
+- **422** — invalid/expired token or validation errors
+
+Reset mail uses `App\Notifications\ResetPasswordNotification`. Tokens live in `password_reset_tokens` (60 min expiry). Set `FRONTEND_URL` in `.env` (default `http://localhost:5173`). Password reset mail is sent synchronously (not queued).
 
 **Products:** `GET/POST /products`, `GET/PUT/DELETE /products/{id}`, `PATCH /products/list-action`
 
@@ -117,6 +139,8 @@ Authorization uses `ProductPolicy` + `App\Support\SuperAdmin` (email match, not 
 | **Emails not sent** | Run `queue:work` OR set `QUEUE_CONNECTION=sync`; `config:clear`; check `mail.default` is `smtp` not `log`; set `LOW_STOCK_NOTIFY_EMAIL` |
 | **Reset link wrong host** | Set `FRONTEND_URL` in backend `.env` to your Vue URL (e.g. `http://localhost:5173`) |
 | **Reset token invalid** | Link expires in 60 min; request a new link; use the latest email |
+| **“No account found” on forgot** | User must register first; email must match `users.email` exactly |
+| **No reset email received** | Configure `MAIL_*` (not `log`); check spam; `config:clear` |
 | **Duplicate emails/alerts** | `php artisan event:list` — `ProductLowStock` should have **one** listener (no duplicate `Event::listen` in providers) |
 | **Super admin UI wrong** | `.env` email matches login email; `config:clear`; log out and log in again on frontend |
 | **Failed jobs** | `php artisan queue:failed` · `storage/logs/laravel.log` |
